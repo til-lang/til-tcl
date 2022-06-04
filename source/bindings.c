@@ -27,6 +27,11 @@ size_t tclNewInterpreter()
     tcl_interpreters[tcl_interpreters_count] = Tcl_CreateInterp();
     return tcl_interpreters_count++;
 }
+int tclInit(size_t interpreter_index)
+{
+    Tcl_Interp* interpreter = tcl_interpreters[interpreter_index];
+    return Tcl_Init(interpreter);
+}
 void tclDeleteInterpreter(size_t interpreter_index)
 {
     Tcl_Interp* interpreter = tcl_interpreters[interpreter_index];

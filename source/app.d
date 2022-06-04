@@ -4,6 +4,7 @@ import til.nodes;
 
 
 extern (C) size_t tclNewInterpreter();
+extern (C) int tclInit(size_t interpreter_index);
 extern (C) void tclDeleteInterpreter(size_t interpreter_index);
 extern (C) int tclEval(size_t interpreter_index, char* script);
 extern (C) char* tclGetVar(size_t interpreter_index, const char* name);
@@ -20,6 +21,10 @@ class TclInterpreter : Item
     {
         this.commands = tclCommands;
         index = tclNewInterpreter();
+    }
+    int init()
+    {
+        return tclInit(index);
     }
     void close()
     {
@@ -60,6 +65,11 @@ extern (C) CommandsMap getCommands(Escopo escopo)
     {
         auto interp = context.pop!TclInterpreter();
         debug {stderr.writeln("tcl.open:", interp);}
+        int exitCode = interp.init();
+        if (exitCode != 0)
+        {
+            return context.error(interp.getResult(), exitCode, "tcl");
+        }
         return context;
     });
     tclCommands["close"] = new Command((string path, Context context)
@@ -79,7 +89,7 @@ extern (C) CommandsMap getCommands(Escopo escopo)
         auto exitCode = interp.run(script);
         if (exitCode == 1)
         {
-            return context.error("Some error ocurred in Tcl", exitCode, "tcl");
+            return context.error(interp.getResult(), exitCode, "tcl");
         }
         // TODO: handle 2 (return), 3 (break) and 4 (continue)
         return context.push(interp.getResult());
