@@ -7,6 +7,7 @@ dist/libtil_tcl.so: til source/app.d dist/bindings.o
 		--O2 -of=dist/libtil_tcl.so
 
 dist/bindings.o: source/bindings.c
+	-mkdir dist
 	gcc -c \
 		-fPIC \
 		source/bindings.c \
