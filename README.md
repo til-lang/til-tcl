@@ -57,3 +57,26 @@ scope "call a Til's proc and make use of the return" {
     assert $($result == 33)
 }
 ```
+
+### export and export.fast
+
+Let's take the following excerpt of code as an example:
+
+```tcl
+run $interpreter {{
+    til_proc 1 2.3
+}}
+```
+
+If `til_proc` was exported into `$interpreter` using `export`, that means
+that it is going to receive *the integer 1* and *the floating-point 2.3*
+as arguments.
+
+But if `til_proc` was exported into `$interpreter` using `export.fast`, it
+is going to receive *the string "1"* and *the string "2.3"* as arguments.
+
+That's because commands going through `export` have their correspondent
+calls **evaluated** as Til grammar, while those going through
+`export.fast` are simply called with all arguments as strings. The later
+tends to be much faster than the former and is recommended when you don't
+really need to parse *every* argument.
