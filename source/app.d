@@ -1,14 +1,18 @@
-import std.string : toStringz;
+import std.stdio;
+import std.string : join, toStringz;
 
+import til.grammar;
 import til.nodes;
 
 
 extern (C) size_t tclNewInterpreter();
 extern (C) int tclInit(size_t interpreter_index);
 extern (C) void tclDeleteInterpreter(size_t interpreter_index);
+extern (C) int tclCreateCommand(size_t interpreter_index, char* name, void* f);
 extern (C) int tclEval(size_t interpreter_index, char* script);
 extern (C) char* tclGetVar(size_t interpreter_index, const char* name);
 extern (C) char* tclGetStringResult(size_t interpreter_index);
+extern (C) int tclSetResult(size_t interpreter_index, char* result);
 
 
 CommandsMap tclCommands;
@@ -16,11 +20,14 @@ CommandsMap tclCommands;
 class TclInterpreter : Item
 {
     size_t index;
+    Context context;
 
-    this()
+    this(Context context)
     {
         this.commands = tclCommands;
+        this.context = context;
         index = tclNewInterpreter();
+        interpreters ~= this;
     }
     int init()
     {
@@ -42,11 +49,60 @@ class TclInterpreter : Item
     {
         return to!string(tclGetVar(index, name.toStringz));
     }
+    void exportCommand(Context context, string procName)
+    {
+        auto exitCode = tclCreateCommand(index, cast(char*)procName.toStringz, &runProc);
+        assert (exitCode == 0);
+    }
 
     override string toString()
     {
         return "Tcl interpreter " ~ to!string(index);
     }
+}
+
+
+TclInterpreter[] interpreters;
+
+
+extern (C) int runProc(void* clientData, void* interp, int argc, const char** argv)
+{
+    auto interpreter_index = cast(size_t)clientData;
+    stderr.writeln("interpreter_index:", interpreter_index);
+    auto tclInterpreter = interpreters[interpreter_index];
+    stderr.writeln("interpreter:", tclInterpreter);
+
+    auto context = tclInterpreter.context;
+    stderr.writeln("context:", context);
+    string[] parts;
+    for (size_t i = 0; i < argc; i++)
+    {
+        auto s = to!string(argv[i]);
+        stderr.writeln("arg ", i, ":", s);
+        parts ~= s;
+        // context.push(s);
+    }
+    string code = parts.join(" ");
+    stderr.writeln("evaluating: ", code);
+
+    auto parser = new Parser(code);
+    SubProgram subprogram = parser.run();
+    context = context.process.run(subprogram, context);
+    stderr.writeln(" DONE! ", context.exitCode, " / ", context.size);
+
+    if (context.size)
+    {
+        string s = context.pop!string();
+        stderr.writeln(" Result: ", s);
+        char* result = cast(char*)(s.toStringz);
+        tclSetResult(interpreter_index, result);
+    }
+
+    // XXX: what about this `context`? Will something
+    // from here reflect on Til's side?
+    tclInterpreter.context = context;
+
+    return 0;
 }
 
 
@@ -58,7 +114,7 @@ extern (C) CommandsMap getCommands(Escopo escopo)
     commands[null] = new Command((string path, Context context)
     {
         debug {stderr.writeln("Creating Tcl interpreter...");}
-        return context.push(new TclInterpreter());
+        return context.push(new TclInterpreter(context));
     });
     // for autoclose:
     tclCommands["open"] = new Command((string path, Context context)
@@ -93,6 +149,18 @@ extern (C) CommandsMap getCommands(Escopo escopo)
         }
         // TODO: handle 2 (return), 3 (break) and 4 (continue)
         return context.push(interp.getResult());
+    });
+    tclCommands["export"] = new Command((string path, Context context)
+    {
+        auto interp = context.pop!TclInterpreter();
+
+        while (context.size)
+        {
+            auto procName = context.pop!string();
+            stderr.writeln("exporting ", procName, " from ", context.escopo);
+            interp.exportCommand(context, procName);
+        }
+        return context;
     });
     tclCommands["extract"] = new Command((string path, Context context)
     {

@@ -38,6 +38,19 @@ void tclDeleteInterpreter(size_t interpreter_index)
     Tcl_DeleteInterp(interpreter);
 }
 
+
+int tclSetResult(size_t interpreter_index, char* result)
+{
+    Tcl_Interp* interpreter = tcl_interpreters[interpreter_index];
+    Tcl_SetResult(interpreter, result, NULL);
+}
+int tclCreateCommand(size_t interpreter_index, char* name, Tcl_CmdProc* f)
+{
+    Tcl_Interp* interpreter = tcl_interpreters[interpreter_index];
+    Tcl_Command cmd = Tcl_CreateCommand(interpreter, name, f, (void*)interpreter_index, NULL);
+    return TCL_OK;
+}
+
 int tclEval(size_t interpreter_index, char* script)
 {
     Tcl_Interp* interpreter = tcl_interpreters[interpreter_index];

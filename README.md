@@ -30,3 +30,30 @@ on returned values.
 called automatically by Til's `autoclose`. If you prefer to **not**
 initialize the Tcl interpreter, avoid `autoclose`, so that `open` method
 don't get called.
+
+### Interacting with Til's code
+
+```tcl
+scope "call a Til's proc and make use of the return" {
+    tcl | autoclose | as t
+    set result 0
+    proc add2 (x y) {
+        return $($x + $y)
+    }
+    proc set_result (x) {
+        print "set_result $x"
+        uplevel set result $x
+        print " done"
+        print " result is $result"
+    }
+    # Export these 2 procs from this scope into $t Tcl interpreter:
+    export $t add2 set_result
+    run $t {{
+        # Calls Til's procedures:
+        set x [add2 11 22]
+        set_result $x
+    }}
+    print "result is $result"
+    assert $($result == 33)
+}
+```
