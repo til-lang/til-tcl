@@ -54,6 +54,11 @@ class TclInterpreter : Item
         auto exitCode = tclCreateCommand(index, cast(char*)procName.toStringz, &runProc);
         assert (exitCode == 0);
     }
+    void exportFastCommand(Context context, string procName)
+    {
+        auto exitCode = tclCreateCommand(index, cast(char*)procName.toStringz, &runFastProc);
+        assert (exitCode == 0);
+    }
 
     override string toString()
     {
@@ -88,6 +93,43 @@ extern (C) int runProc(void* clientData, void* interp, int argc, const char** ar
     auto parser = new Parser(code);
     SubProgram subprogram = parser.run();
     context = context.process.run(subprogram, context);
+    stderr.writeln(" DONE! ", context.exitCode, " / ", context.size);
+
+    if (context.size)
+    {
+        string s = context.pop!string();
+        stderr.writeln(" Result: ", s);
+        char* result = cast(char*)(s.toStringz);
+        tclSetResult(interpreter_index, result);
+    }
+
+    // XXX: what about this `context`? Will something
+    // from here reflect on Til's side?
+    tclInterpreter.context = context;
+
+    return 0;
+}
+extern (C) int runFastProc(void* clientData, void* interp, int argc, const char** argv)
+{
+    auto interpreter_index = cast(size_t)clientData;
+    stderr.writeln("interpreter_index:", interpreter_index);
+    auto tclInterpreter = interpreters[interpreter_index];
+    stderr.writeln("interpreter:", tclInterpreter);
+
+    auto context = tclInterpreter.context;
+    stderr.writeln("context:", context);
+
+    string cmdName = to!string(argv[0]);
+    auto command = context.escopo.getCommand(cmdName);
+
+    for (size_t i = 1; i < argc; i++)
+    {
+        auto s = to!string(argv[i]);
+        stderr.writeln("arg ", i, ":", s);
+        context.push(s);
+    }
+
+    context = command.run(cmdName, context);
     stderr.writeln(" DONE! ", context.exitCode, " / ", context.size);
 
     if (context.size)
@@ -159,6 +201,18 @@ extern (C) CommandsMap getCommands(Escopo escopo)
             auto procName = context.pop!string();
             stderr.writeln("exporting ", procName, " from ", context.escopo);
             interp.exportCommand(context, procName);
+        }
+        return context;
+    });
+    tclCommands["export.fast"] = new Command((string path, Context context)
+    {
+        auto interp = context.pop!TclInterpreter();
+
+        while (context.size)
+        {
+            auto procName = context.pop!string();
+            stderr.writeln("exporting (fast) ", procName, " from ", context.escopo);
+            interp.exportFastCommand(context, procName);
         }
         return context;
     });
