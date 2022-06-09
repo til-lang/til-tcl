@@ -11,6 +11,7 @@ extern (C) void tclDeleteInterpreter(size_t interpreter_index);
 extern (C) int tclCreateCommand(size_t interpreter_index, char* name, void* f);
 extern (C) int tclEval(size_t interpreter_index, char* script);
 extern (C) char* tclGetVar(size_t interpreter_index, const char* name);
+extern (C) char* tclSetVar(size_t interpreter_index, const char* name, const char* value);
 extern (C) char* tclGetStringResult(size_t interpreter_index);
 extern (C) int tclSetResult(size_t interpreter_index, char* result);
 
@@ -48,6 +49,19 @@ class TclInterpreter : Item
     string opIndex(string name)
     {
         return to!string(tclGetVar(index, name.toStringz));
+    }
+    void opIndexAssign(string value, string name)
+    {
+        auto result = tclSetVar(index, name.toStringz, value.toStringz);
+        if (result is null)
+        {
+            auto msg = to!string(tclGetStringResult(index));
+            throw new Exception(msg);
+        }
+        else
+        {
+            debug {stderr.writeln("tclSetVar.result:", to!string(result));}
+        }
     }
     void exportCommand(Context context, string procName)
     {
@@ -214,6 +228,15 @@ extern (C) CommandsMap getCommands(Escopo escopo)
             stderr.writeln("exporting (fast) ", procName, " from ", context.escopo);
             interp.exportFastCommand(context, procName);
         }
+        return context;
+    });
+    tclCommands["set"] = new Command((string path, Context context)
+    {
+        auto interp = context.pop!TclInterpreter();
+        auto name = context.pop!string();
+        auto value = context.pop!string();
+        debug {stderr.writeln("tcl.set:", interp, " ", name, " = ", value);}
+        interp[name] = value;
         return context;
     });
     tclCommands["extract"] = new Command((string path, Context context)
