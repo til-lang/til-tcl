@@ -99,7 +99,6 @@ extern (C) int runProc(void* clientData, void* interp, int argc, const char** ar
         auto s = to!string(argv[i]);
         stderr.writeln("arg ", i, ":", s);
         parts ~= s;
-        // context.push(s);
     }
     string code = parts.join(" ");
     stderr.writeln("evaluating: ", code);
@@ -204,6 +203,11 @@ extern (C) CommandsMap getCommands(Escopo escopo)
             return context.error(interp.getResult(), exitCode, "tcl");
         }
         // TODO: handle 2 (return), 3 (break) and 4 (continue)
+        return context;
+    });
+    tclCommands["result"] = new Command((string path, Context context)
+    {
+        auto interp = context.pop!TclInterpreter();
         return context.push(interp.getResult());
     });
     tclCommands["export"] = new Command((string path, Context context)
